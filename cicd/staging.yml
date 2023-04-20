@@ -1,0 +1,107 @@
+variables:
+  SSH_NAME: "myforex-ekyc"
+  CONTAINER_NAME: "ekyc-be"
+  NAME_KEY_PEM: "dev-ekyc.pem"
+  DEPLOY_FILE: "deploy-myforex-ekyc-stg.sh"
+
+
+stages:
+   - build
+   - cleanup_build
+   - deploy
+
+build_staging:
+  stage: build
+  tags:
+    - ekyc-be-dev-runner
+  before_script:
+    # remove file credentials
+    - rm -rf ${CI_PROJECT_DIR}/.env
+    - rm -rf ${CI_PROJECT_DIR}/cert.pem
+    - rm -rf ${CI_PROJECT_DIR}/key.pem
+    - rm -rf ${CI_PROJECT_DIR}/node_modules
+    - rm -rf ${CI_PROJECT_DIR}/yarn.lock
+    # create file credentials
+    - cat "${ENV_STAGING}" > ${CI_PROJECT_DIR}/.env
+    - cat "${CERT_STAGING}" > ${CI_PROJECT_DIR}/cert.pem
+    - cat "${PRIVATE_KEY_STAGING}" > ${CI_PROJECT_DIR}/key.pem
+    # Setting Credentials AWS
+    - export AWS_DEFAULT_REGION=ap-northeast-1
+    - export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_STAGING}
+    - export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_STAGING}
+  script:
+    # install dependency & build docker image
+    - yarn install --prod
+    - export IMAGE_NAME=${IMAGE_STAGING}
+    - export COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
+    - export COMMIT_DATETIME=`date -d @${COMMIT_TIME} '+%Y-%m-%d_%H-%M-%S'`
+    - export IMAGE="${IMAGE_NAME}:stg-${COMMIT_DATETIME}"
+    - echo "${IMAGE}"
+    - docker build --no-cache -t ekyc-be:staging -t ${IMAGE} .
+    # Push Image to ECR
+    - aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY_STAGING}
+    - docker push ${IMAGE}
+    - export AWS_ACCESS_KEY_ID=
+    - export AWS_SECRET_ACCESS_KEY=
+    - docker logout ${ECR_REGISTRY_STAGING}
+
+deploy_staging:
+  stage: deploy
+  image: ubuntu:20.04
+  tags:
+    - ekyc-be-stg-runner
+  before_script:
+    # Setting SSH
+    - "which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )"
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+    - export TZ="Asia/Bangkok"
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
+    - echo "${KNOW_HOSTS}" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - cat "${CONFIG_SSH}" > ~/.ssh/config
+    - cat "${JUMP_PEM}" > ~/.ssh/rikkei-dungptk.pem
+    - cat "${DEVEKYC_COM_PEM}" > ~/.ssh/${NAME_KEY_PEM}
+    - ls ~/.ssh/
+    - chmod 400 ~/.ssh/*
+  script:
+    # Create Image Name
+    - export IMAGE_NAME=${IMAGE_STAGING}
+    - export COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
+    - export COMMIT_DATETIME=`date -d @${COMMIT_TIME} '+%Y-%m-%d_%H-%M-%S'`
+    - export IMAGE="${IMAGE_NAME}:stg-${COMMIT_DATETIME}"
+    - echo "${IMAGE}"
+#    Create Deploy file
+    - cat "${SHEL_SCRIPT_DEPLOY}" > ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "aws configure set region ap-northeast-1 --profile ekyc-staging" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID_STAGING} --profile ekyc-staging" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY_STAGING} --profile ekyc-staging" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "aws --profile ekyc-staging ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY_STAGING}" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "docker pull ${IMAGE}" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "docker stop ${CONTAINER_NAME}" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "docker rm ${CONTAINER_NAME}" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "docker run --name ${CONTAINER_NAME} -p 0.0.0.0:6969:6969/tcp -d ${IMAGE}" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - echo "exit" >> ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - chmod 777 ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    # Run Deploy file on EC2 remote
+    - cat ${CI_PROJECT_DIR}/${DEPLOY_FILE}| ssh ${SSH_NAME} 'bash -'
+  after_script:
+    # remove keypem
+    - rm -rf ${CI_PROJECT_DIR}/${DEPLOY_FILE}
+    - rm -rf ~/.ssh/${JUMP_PEM}
+    - rm -rf ~/.ssh/${NAME_KEY_PEM}
+
+cleanup_deploy_job:
+  stage: cleanup_build
+  tags:
+    - ekyc-be-dev-runner
+  script:
+    - rm -rf ~/.ssh/${JUMP_PEM}
+    - rm -rf ~/.ssh/${NAME_KEY_PEM}
+    - rm -rf ${CI_PROJECT_DIR}/.env
+    - export AWS_ACCESS_KEY_ID=
+    - export AWS_SECRET_ACCESS_KEY=
+    - docker logout ${ECR_REGISTRY_STAGING}
+  when: on_failure

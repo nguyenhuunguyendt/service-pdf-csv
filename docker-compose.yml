@@ -1,0 +1,8 @@
+version: '3'
+services:
+  ekyc_be:
+    image: ekyc-be:latest
+#    command: npm start
+    container_name: ekyc_be
+    ports:
+      - "6969:6969"

@@ -1,0 +1,18 @@
+stages:
+   - deploy
+
+deploy_dev:
+  stage: deploy
+  only:
+    - develop
+  trigger:
+    include: ${CI_PROJECT_DIR}/cicd/develop.yml
+    strategy: depend
+
+deploy_staging:
+  stage: deploy
+  only:
+    - staging
+  trigger:
+    include: ${CI_PROJECT_DIR}/cicd/staging.yml
+    strategy: depend

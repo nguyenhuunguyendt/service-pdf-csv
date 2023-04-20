@@ -1,0 +1,43 @@
+variables:
+  CONTAINER_NAME: "ekyc-be"
+  PORT_CONTAINER: 8969
+
+build_dev:
+  stage: build
+  only:
+     - develop
+  script:
+    - rm -rf ${CI_PROJECT_DIR}/.env
+    - rm -rf ${CI_PROJECT_DIR}/cert.pem
+    - rm -rf ${CI_PROJECT_DIR}/key.pem
+    - cat "${ENV_DEV}" > ${CI_PROJECT_DIR}/.env
+    - cat "${CERT_DEV}" > ${CI_PROJECT_DIR}/cert.pem
+    - cat "${PRIVATE_KEY_DEV}" > ${CI_PROJECT_DIR}/key.pem
+    - rm -rf ${CI_PROJECT_DIR}/node_modules
+    - rm -rf ${CI_PROJECT_DIR}/yarn.lock
+    - yarn install --prod
+    - export IMAGE_NAME=${IMAGE_DEV}
+    - export COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
+    - export COMMIT_DATETIME=`date -d @${COMMIT_TIME} '+%Y-%m-%d_%H-%M-%S'`
+    - export IMAGE="${IMAGE_NAME}:dev-${COMMIT_DATETIME}"
+    - echo "${IMAGE}"
+    - docker build --no-cache -t ${IMAGE} .
+  tags:
+     - ekyc-be-dev-runner
+
+deploy_dev:
+   stage: deploy
+   only:
+      - develop
+   tags:
+      - ekyc-be-dev-runner
+   before_script:
+     - export IMAGE_NAME=${IMAGE_DEV}
+     - export COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
+     - export COMMIT_DATETIME=`date -d @${COMMIT_TIME} '+%Y-%m-%d_%H-%M-%S'`
+     - export IMAGE="${IMAGE_NAME}:dev-${COMMIT_DATETIME}"
+     - echo "${IMAGE}"
+   script:
+      - docker stop ${CONTAINER_NAME}
+      - docker rm ${CONTAINER_NAME}
+      - docker run --name ${CONTAINER_NAME} -p 0.0.0.0:${PORT_CONTAINER}:6969/tcp -d ${IMAGE}

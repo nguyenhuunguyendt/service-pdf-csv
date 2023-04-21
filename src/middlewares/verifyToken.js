@@ -50,8 +50,8 @@ async function verifyToken(req, res, next) {
     })
   } catch (error) {
     console.log(error)
-    return res.status(403).json({
-      message: message.server_error,
+    return res.status(401).json({
+      message: 'Unauthorized',
     })
   }
 }

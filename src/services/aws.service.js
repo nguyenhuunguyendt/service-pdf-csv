@@ -1,17 +1,19 @@
-require('dotenv').config()
-const { s3Config } = require('../configs/index')
+const { s3Client } = require('../configs/index')
+const { PutObjectCommand } = require('@aws-sdk/client-s3')
 
-const uploadFileToS3 = async (file, directory) => {
+const uploadFileToS3 = async (file, directory, bucket) => {
   try {
     const params = {
-      Bucket: process.env.BUCKET,
+      Bucket: bucket,
       Key: directory,
       Body: file,
     }
-
-    const res = await s3Config.upload(params).promise()
-    if (res.Location) {
-      return res
+    const command = new PutObjectCommand(params)
+    const result = await s3Client.send(command)
+    if (result?.$metadata?.httpStatusCode === 200) {
+      return {
+        Location: `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${directory}`,
+      }
     } else {
       return false
     }

@@ -16,7 +16,7 @@ async function verifyToken(req, res, next) {
       const accessTokenInDb = await getTokenbyId(decode.user_id)
       if (!accessTokenInDb) {
         return res.status(403).json({
-          message: message.error,
+          message: message.server_error,
         })
       }
 
@@ -35,27 +35,27 @@ async function verifyToken(req, res, next) {
 
       // check duplicate login
       if ( validToken && jwtToken !== accessTokenInDb.access_token) {
-        return res.status(403).json({
-          message: 'duplicate_login',
-        })
+        return res.status(403)
+          .set('error-message', 'duplicate_login')
+          .json({ 'message': 'User is not authorized to access this resource with an explicit deny' })
       }
 
       // check user lock
       if (accessTokenInDb.is_locked === 1) {
-        return res.status(403).json({
-          message: message.account_locked,
-        })
+        return res.status(403)
+          .set('error-message', message.account_locked)
+          .json({ 'message': 'User is not authorized to access this resource with an explicit deny' })
       }
       next()
     })
   } catch (error) {
     console.log(error)
     return res.status(403).json({
-      message: message.error,
+      message: message.server_error,
     })
   }
 }
 
-module.exports={
+module.exports = {
   verifyToken,
 }

@@ -1,3 +1,4 @@
 module.exports = {
-  ...require('./authentication'),
+  ...require('./verifyToken'),
+  ...require('./errorHandler'),
 }

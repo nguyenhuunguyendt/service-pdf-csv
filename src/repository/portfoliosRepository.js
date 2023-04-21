@@ -20,6 +20,6 @@ const getPortfolioActivities = async (portfolio_id, user_id) => {
     .first()
 }
 
-module.exports={
+module.exports = {
   getPortfolioActivities,
 }

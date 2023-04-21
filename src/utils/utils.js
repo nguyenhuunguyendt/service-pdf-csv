@@ -43,7 +43,7 @@ const createResponse = (res, isSuccess = true, data = {}, code, message) => {
 }
 
 
-module.exports={
+module.exports = {
   getUserIdByToken,
   createResponse,
 }

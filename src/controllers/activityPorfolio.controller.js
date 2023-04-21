@@ -1,12 +1,12 @@
-const { code, message } =require('../constant')
+const { code, message } = require('../constant')
 const { createResponse, getUserIdByToken } = require('../utils')
 const { getPortfolioActivities } = require('../repository')
 
-async function ExportActivityPortFolio(req, res, next) {
+async function exportActivityPortFolio(req, res, next) {
   try {
     const user_id = getUserIdByToken(req)
-
-    if (!req.query.totalRecord) {
+    const { totalRecord, exportsCSV } = req.query
+    if (!totalRecord) {
       return createResponse(res, false, null, code.INVALID, message.fields_invalid )
     }
 
@@ -16,13 +16,21 @@ async function ExportActivityPortFolio(req, res, next) {
       return createResponse(res, false, null, code.ERROR, message.server_error )
     }
 
+    // const params = {}
+
+    // for (let i = 1; i <= totalRecord / 30000; i++) {
+    //
+    // }
+
+    if (exportsCSV) {
+
+    }
     return createResponse(res, true, portfolio)
   } catch (error) {
-    console.log(error)
-    return createResponse(res, false, null, code.ERROR, message.server_error )
+    next(error)
   }
 }
 
 module.exports = {
-  ExportActivityPortFolio,
+  exportActivityPortFolio,
 }

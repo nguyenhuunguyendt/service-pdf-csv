@@ -15,6 +15,6 @@ async function getTokenbyId(userId) {
   }
 }
 
-module.exports={
+module.exports = {
   getTokenbyId,
 }
